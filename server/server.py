@@ -1,11 +1,12 @@
 import pickle
+import threading
+from collections import deque
 from concurrent import futures
+from typing import List
 
 import grpc
 import numpy as np
-from PROD import deviationClassifier
-from PROD import featureClassifier
-from helpers import get_logger, UniqueQueue
+from helpers import get_logger
 from messages_pb2 import AnomalyDetResponse
 from messages_pb2_grpc import AnomalyDetectionServiceServicer, add_AnomalyDetectionServiceServicer_to_server
 
@@ -18,7 +19,7 @@ def rpc_request_arr_to_np_arr(request):
 
 
 class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
-    def __init__(self, address='0.0.0.0:8061'):
+    def __init__(self, address: str = '0.0.0.0:8061'):
         self.address = address
         self.logger = get_logger(self.__class__.__name__)
         with open("models/featureClassifier_2604.pkl", 'rb') as f:
@@ -47,31 +48,34 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
 
         self.logger.info("STREAMING DONE")
 
-    def _attempt_prediction(self, data: list):
-        for segment in data:
-            arr_to_predict = self._prep_arr_for_prediction(segment)
+    def _attempt_prediction(self, data_segments: List[tuple]):
+        for segment in data_segments:
+            arr_to_predict = self._prep_arr_for_prediction(segment[0])
+            arr_identifier = segment[1]
+            arr_len = arr_to_predict.shape[0]
             res = self.my_classifier.predict_partial_signal(arr_to_predict)
-            if res:
-                yield AnomalyDetResponse(id=1, result=res)
-                self.logger.info(f"Send SendNumpyArray response: result: {res}, id: {1}")
+            if res is not None:
+                yield AnomalyDetResponse(id=arr_identifier, result=res, series_len=arr_len)
+                self.logger.info(f"Send SendNumpyArray response: result: {res}, id: {arr_identifier}"
+                                 f", time series length: {arr_len}")
 
     def _prep_arr_for_prediction(self, arr):
         arr = np.delete(arr, self.identifier_idx, axis=0)
         return arr.T
 
-    def get_non_zero_segments(self, array):
+    def get_non_zero_segments(self, array) -> List[tuple]:
         ids = self._extract_identifiers(array)
         if ids.size == 0:
             return []
         return self._split_by_ids(array, ids)
 
-    def _split_by_ids(self, array, ids):
+    def _split_by_ids(self, array, ids) -> List[tuple]:
         ret = []
 
         for i in ids:
             non_zero_id_series = self._extract_non_zero_id_series(array, i)
             if len(non_zero_id_series) != 0:
-                ret.append(non_zero_id_series)
+                ret.append((non_zero_id_series, int(i)))
 
         return ret
 
@@ -100,6 +104,5 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         server.add_insecure_port(self.address)
         server.start()
         self.logger.info("Server started")
-        # server.stop(None)
         server.wait_for_termination()
         self.logger.info("Server shut down successfully")

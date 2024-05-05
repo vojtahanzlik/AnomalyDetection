@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-time Predictions</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            margin: 20px 0;
+        }
+        #predictions {
+            width: 60%;
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            max-height: 400px;
+        }
+        .prediction-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            color: #555;
+        }
+        .prediction-item:last-child {
+            border-bottom: none;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            color: white;
+            background-color: #007BFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <script type="text/javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+        socket.on('connect', function() {
+            console.log('Websocket connected!');
+        });
+
+        document.getElementById('startButton').addEventListener('click', function() {
+            socket.emit('start_streaming', {});  // Tell the server to start streaming
+        });
+
+        document.getElementById('stopButton').addEventListener('click', function() {
+            socket.emit('stop_streaming', {});  // Tell the server to stop streaming
+        });
+
+        socket.on('update_predictions', function(predictions) {
+            var predictionsElement = document.getElementById('predictions');
+            predictionsElement.innerHTML = ''; // Clear existing predictions
+            predictions.forEach(function(pred) {
+                var newPred = document.createElement('div');
+                newPred.classList.add('prediction-item');
+                newPred.textContent = 'Process identifier: ' + pred.id + ' - Result: ' + pred.result + ' - Time series length: ' + pred.series_len;
+                predictionsElement.appendChild(newPred);
+            });
+        });
+    });
+</script>
+</head>
+<body>
+    <h1>Real-time Anomaly Detection Results</h1>
+
+    <button id="startButton">Start Streaming</button>
+    <button id="stopButton">Stop Streaming</button>
+    <div id="predictions">
+        <h2>Predictions:</h2>
+    </div>
+
+</body>
+</html>

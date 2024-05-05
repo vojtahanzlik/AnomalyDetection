@@ -6,12 +6,14 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Optional as _Op
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class AnomalyDetResponse(_message.Message):
-    __slots__ = ("id", "result")
+    __slots__ = ("id", "result", "series_len")
     ID_FIELD_NUMBER: _ClassVar[int]
     RESULT_FIELD_NUMBER: _ClassVar[int]
+    SERIES_LEN_FIELD_NUMBER: _ClassVar[int]
     id: int
     result: bool
-    def __init__(self, id: _Optional[int] = ..., result: bool = ...) -> None: ...
+    series_len: int
+    def __init__(self, id: _Optional[int] = ..., result: bool = ..., series_len: _Optional[int] = ...) -> None: ...
 
 class NumpyArray(_message.Message):
     __slots__ = ("values", "rows", "cols", "id")

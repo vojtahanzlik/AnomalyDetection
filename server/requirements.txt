@@ -9,3 +9,6 @@ scikit_learn
 scipy
 tslearn
 cryptography
+flask
+flask_socketio
+requests
