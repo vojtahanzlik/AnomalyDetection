@@ -3,7 +3,7 @@ from influxdb_client_3 import InfluxDBClient3, Point
 import paho.mqtt.client as mqtt
 import json
 
-
+#set INFLUXDB_TOKEN=C-seWzRsZrVkx6rtbBDuV1w1h0HT0A23nWKxK7XX-o0qgkJJBXA_-ydFdexcFed3PhrV24TsZNboD4erC0KRhw==
 token = os.environ.get("INFLUXDB_TOKEN")
 org = "FEL"
 host = "https://eu-central-1-1.aws.cloud2.influxdata.com"
