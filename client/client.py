@@ -3,7 +3,6 @@ from collections import deque
 from typing import Iterator
 from flask_socketio import SocketIO
 import grpc
-import paho.mqtt.client as mqtt
 
 from messages_pb2 import NumpyArray
 from messages_pb2_grpc import AnomalyDetectionServiceStub
@@ -16,8 +15,6 @@ class ClientBase(ABC):
         self.logger = get_logger(self.__class__.__name__)
         channel = grpc.insecure_channel(address)
         self.stub = AnomalyDetectionServiceStub(channel)
-        self.mqtt_client = mqtt.Client()
-        self.mqtt_client.connect("broker.hivemq.com", 1883)
         self.socket = socket
         self.predictions = deque(maxlen=20)
         self.stop_stream = False
@@ -41,7 +38,8 @@ class ClientBase(ABC):
                     time_series_len = int(response.series_len)
                     pred = bool(response.result)
 
-                    self.predictions.append({'id': time_series_identifier, 'result': pred, 'series_len': time_series_len})
+                    self.predictions.append(
+                        {'id': time_series_identifier, 'result': pred, 'series_len': time_series_len})
                     self.logger.info(f"Server response: result: {pred} id: {time_series_identifier}"
                                      f" time series length: {time_series_len}")
 

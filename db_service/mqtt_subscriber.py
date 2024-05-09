@@ -1,42 +1,67 @@
-import os, time
-from influxdb_client_3 import InfluxDBClient3, Point
-import paho.mqtt.client as mqtt
-import json
+import datetime
+import pickle
 
-#set INFLUXDB_TOKEN=C-seWzRsZrVkx6rtbBDuV1w1h0HT0A23nWKxK7XX-o0qgkJJBXA_-ydFdexcFed3PhrV24TsZNboD4erC0KRhw==
-token = os.environ.get("INFLUXDB_TOKEN")
+import certifi
+import paho.mqtt.client as mqtt
+from influxdb_client_3 import InfluxDBClient3
+
+token = "x4NKvlSG6Ll7FAaHI4TMnf1eOzjJgThBU07MRrNjacnLOZjrx_BpVBdFrWbUVBw1WeaQdBIZwGN2IOBICJB_RQ=="
 org = "FEL"
 host = "https://eu-central-1-1.aws.cloud2.influxdata.com"
 
-influx_client = InfluxDBClient3(host='localhost', port=8086, database='predictions')
+influx_client = InfluxDBClient3(host=host, database="Delta_Robot_Sensor_Data",
+                                org=org, token=token,
+                                ssl_ca_cert=certifi.where())
+
+time_step = 0.004
 
 
-def on_connect(client, userdata, flags, rc):
-    print("Connected with result code " + str(rc))
-    client.subscribe("anomaly/predictions")
+def on_connect(client, userdata, flags, reason_code, properties):
+    print("Connected with result code " + str(reason_code))
+    mqtt_client = client
+    mqtt_client.subscribe("anomaly/predictions")
+    mqtt_client.on_message = on_message
+
+
+
+def mqtt_connect():
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    mqtt_client.on_connect = on_connect
+    mqtt_client.connect("broker.hivemq.com")
+    return mqtt_client
 
 
 def on_message(client, userdata, msg):
-    data = json.loads(msg.payload)
-    json_body = [
+    data_bundle = pickle.loads(msg.payload)
+    array = data_bundle['array'].T
+    array_len = array.shape[1]
+    prediction = data_bundle['prediction']
+    identifier = data_bundle['identifier']
+    start_time = datetime.datetime.now()
+    interval = datetime.timedelta(seconds=0.004)
+    timestamps = [start_time + i * interval for i in range(array_len)]
+    records = [
         {
-            "measurement": "anomaly_detection",
-            "tags": {
-                "prediction_id": str(data['prediction_id'])
-            },
+            "measurement": "time_series_segments",
+            "time": timestamps[i].isoformat() + "Z",
             "fields": {
-                "result": data['result'],
-                "series_length": data['series_length'],
-                "series_data": str(data['series_data'])
+                "field1": float(array[0][i]),
+                "field2": float(array[1][i]),
+                "field3": float(array[2][i]),
+                "field4": float(array[3][i]),
+                "field5": float(array[4][i]),
+                "field6": float(array[5][i]),
+                "prediction": prediction,
+                "identifier": identifier
             }
-        }
+        } for i in range(array_len)
     ]
-    influx_client.write_points(json_body)
+
+    influx_client.write(record=records, database="Delta_Robot_Sensor_Data")
+    print("Records written")
 
 
-mqtt_client = mqtt.Client()
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message
+if __name__ == '__main__':
+    c = mqtt_connect()
+    c.loop_forever()
 
-mqtt_client.connect("broker.hivemq.com", 1883)
-mqtt_client.loop_forever()
