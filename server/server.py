@@ -1,15 +1,16 @@
 import pickle
-import threading
-from collections import deque
+
 from concurrent import futures
 from typing import List
-
+from multiprocessing.pool import ThreadPool
 import grpc
 import numpy as np
 from helpers import get_logger
 from messages_pb2 import AnomalyDetResponse
 from messages_pb2_grpc import AnomalyDetectionServiceServicer, add_AnomalyDetectionServiceServicer_to_server
 from mqtt_publisher import publish_data, mqtt_connect
+
+pool = ThreadPool(processes=2)
 
 
 def rpc_request_arr_to_np_arr(request):
@@ -61,8 +62,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
                 yield AnomalyDetResponse(id=arr_identifier, result=res, series_len=arr_len)
                 self.logger.info(f"Send SendNumpyArray response: result: {res}, id: {arr_identifier}"
                                  f", time series length: {arr_len}")
-                publish_data(self.publisher, arr_to_predict, res, arr_identifier)
-
+                pool.apply_async(publish_data, (self.publisher, arr_to_predict, res, arr_identifier))
 
     def _prep_arr_for_prediction(self, arr):
         arr = np.delete(arr, self.identifier_idx, axis=0)
@@ -104,7 +104,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         return np.concatenate((time_series, array), axis=1)
 
     def serve(self):
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=3))
         add_AnomalyDetectionServiceServicer_to_server(self, server)
         server.add_insecure_port(self.address)
         server.start()

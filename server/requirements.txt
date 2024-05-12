@@ -12,3 +12,4 @@ cryptography
 flask
 flask_socketio
 requests
+aiomqtt

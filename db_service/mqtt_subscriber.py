@@ -23,7 +23,6 @@ def on_connect(client, userdata, flags, reason_code, properties):
     mqtt_client.on_message = on_message
 
 
-
 def mqtt_connect():
     mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     mqtt_client.on_connect = on_connect
@@ -64,4 +63,3 @@ def on_message(client, userdata, msg):
 if __name__ == '__main__':
     c = mqtt_connect()
     c.loop_forever()
-
