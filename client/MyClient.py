@@ -1,32 +1,51 @@
-import time
+from datetime import datetime
+from time import sleep
 from typing import Iterator
 from flask_socketio import SocketIO
 import numpy as np
 from client import ClientBase
 from messages_pb2 import NumpyArray
-from test import main_realtime
+from opc_ua_client import main_realtime
+from client import messages_timestamps
 
 
 class MyClient(ClientBase):
 
     def __init__(self, socket: SocketIO):
         super().__init__(socket)
+        self.data_point_interval = 0.004
 
     def yield_test(self):
-        for i in range(2,3):
+        prev_last_timestamp = 0
+        for i in range(2, 6):
             data = np.load(f"test_samples/samples{i}.npy")
             selected_rows = data[4:11, :]
+
+            dt = datetime.now()
+            first_timestamp = dt.timestamp()
+            first_timestamp = max(first_timestamp, prev_last_timestamp + 1)
+            num_of_datapoints = selected_rows.shape[1]
+            last_timestamp = first_timestamp + (num_of_datapoints - 1) * self.data_point_interval
+
+            prev_last_timestamp = last_timestamp
+            timestamps = np.linspace(start=first_timestamp, stop=last_timestamp, num=num_of_datapoints)
+            selected_rows = np.vstack((selected_rows, timestamps))
+
             split_arrays = np.array_split(selected_rows, 24, axis=1)
-            time.sleep(2)
             for array in split_arrays:
                 yield array
 
     def _stream_messages(self) -> Iterator[NumpyArray]:
+        id = 0
         for array in self.yield_test():
             if self.stop_stream:
                 break
             rows = array.shape[0]
             cols = array.shape[1]
             vals = array.flatten()
-            request = NumpyArray(values=vals, rows=rows, cols=cols, id=0)
+
+            messages_timestamps.update({id: [datetime.now()]})
+            request = NumpyArray(values=vals, rows=rows, cols=cols, msg_id=id)
+            id += 1
+            sleep(2)
             yield request

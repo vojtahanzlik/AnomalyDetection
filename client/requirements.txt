@@ -11,4 +11,3 @@ tslearn
 cryptography
 requests
 paho-mqtt
-influxdb3-python

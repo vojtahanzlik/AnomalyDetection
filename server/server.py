@@ -5,6 +5,8 @@ from typing import List
 from multiprocessing.pool import ThreadPool
 import grpc
 import numpy as np
+from PROD.models.lstmClassifier import lstmClassifier
+from Classifier import ClassifierFactory
 from helpers import get_logger
 from messages_pb2 import AnomalyDetResponse
 from messages_pb2_grpc import AnomalyDetectionServiceServicer, add_AnomalyDetectionServiceServicer_to_server
@@ -24,49 +26,74 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
     def __init__(self, address: str = '0.0.0.0:8061'):
         self.address = address
         self.logger = get_logger(self.__class__.__name__)
-        with open("models/featureClassifier_2604.pkl", 'rb') as f:
-            loaded_object = pickle.load(f)
-            self.my_classifier = loaded_object
-            self.logger.info(f"Loaded classifier: {self.my_classifier.__class__.__name__}")
 
+        self.my_classifier = ClassifierFactory.load_classifier("models/FEATURE_MODEL_TEST.pkl")
+
+        self.num_of_features = 6
+        self.num_of_input_rows = 8
         self.identifier_idx = 6
-        self.input_rows_num = 7
+        self.timestamp_idx = 7
 
         self.publisher = mqtt_connect()
 
+        self.prev_pred_input = None
+        self.curr_num_of_segments = 0
     def StreamData(self, request_iterator, context):
         self.logger.info("Received SendNumpyArray stream request")
         if not request_iterator:
             self.logger.error("Invalid request iterator")
             raise grpc.RpcError
-
         for request in request_iterator:
+            msg_id = request.msg_id
             self.logger.info("Received SendNumpyArray request")
             array = rpc_request_arr_to_np_arr(request)
             self.logger.info("Request converted to np array")
 
             segments_lst = self.get_non_zero_segments(array)
 
-            for pred in self._attempt_prediction(segments_lst):
-                yield pred
+            if len(segments_lst) != 0:
+                for pred in self._process_non_zero_segments(segments_lst, msg_id):
+                    yield pred
 
+        self.prev_pred_input = None
         self.logger.info("STREAMING DONE")
 
-    def _attempt_prediction(self, data_segments: List[tuple]):
-        for segment in data_segments:
-            arr_to_predict = self._prep_arr_for_prediction(segment[0])
-            arr_identifier = segment[1]
-            arr_len = arr_to_predict.shape[0]
-            res = self.my_classifier.predict_partial_signal(arr_to_predict)
-            if res is not None:
-                yield AnomalyDetResponse(id=arr_identifier, result=res, series_len=arr_len)
-                self.logger.info(f"Send SendNumpyArray response: result: {res}, id: {arr_identifier}"
-                                 f", time series length: {arr_len}")
-                pool.apply_async(publish_data, (self.publisher, arr_to_predict, res, arr_identifier))
+    def _process_non_zero_segments(self, non_zero_segments, msg_id):
+        for segment in non_zero_segments:
+            arr_identifier = int(np.max(segment[self.identifier_idx]))
+            if self.prev_pred_input is None:
+                curr_pred_input = segment
+                self.curr_num_of_segments = 1
+
+            elif int(np.max(self.prev_pred_input[self.identifier_idx])) == arr_identifier:
+                curr_pred_input = np.hstack((self.prev_pred_input, segment))
+                self.curr_num_of_segments += 1
+
+            else:  # last segment of current identifier
+                curr_pred_input = segment
+                self.curr_num_of_segments = 1
+
+            self.prev_pred_input = curr_pred_input
+            res = self._attempt_prediction(curr_pred_input, arr_identifier, msg_id)
+            yield res
+
+    def _attempt_prediction(self, input_arr, arr_id: int, msg_id: int):
+        arr_to_predict, timestamp_row = self._prep_arr_for_prediction(input_arr)
+        arr_len = arr_to_predict.shape[0]
+        res = self.my_classifier.predict(arr_to_predict)
+        if res is not None:
+            self.logger.info(f"Send SendNumpyArray response: result: {res}, id: {arr_id}"
+                             f", time series length: {arr_len}")
+            if self.curr_num_of_segments >= 3:
+                pool.apply_async(publish_data, (self.publisher, arr_to_predict, res, arr_id, timestamp_row))
+                self.curr_num_of_segments = 0
+            return AnomalyDetResponse(id=arr_id, result=res, series_len=arr_len, msg_id=msg_id)
 
     def _prep_arr_for_prediction(self, arr):
+        timestamp_row = arr[self.timestamp_idx, :]
         arr = np.delete(arr, self.identifier_idx, axis=0)
-        return arr.T
+        arr = np.delete(arr, self.timestamp_idx - 1, axis=0)
+        return arr.T, timestamp_row
 
     def get_non_zero_segments(self, array) -> List[tuple]:
         ids = self._extract_identifiers(array)
@@ -74,13 +101,13 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
             return []
         return self._split_by_ids(array, ids)
 
-    def _split_by_ids(self, array, ids) -> List[tuple]:
+    def _split_by_ids(self, array, ids) -> list:
         ret = []
 
         for i in ids:
             non_zero_id_series = self._extract_non_zero_id_series(array, i)
             if len(non_zero_id_series) != 0:
-                ret.append((non_zero_id_series, int(i)))
+                ret.append(non_zero_id_series)
 
         return ret
 
@@ -91,7 +118,6 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         return unique_ids
 
     def _extract_non_zero_id_series(self, data, id):
-
         non_zero_idxs = np.where(data[self.identifier_idx, :] == id)[0]
         if len(non_zero_idxs) == 0:
             return []
@@ -108,6 +134,6 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         add_AnomalyDetectionServiceServicer_to_server(self, server)
         server.add_insecure_port(self.address)
         server.start()
-        self.logger.info("Server started")
+        self.logger.info("GRPC server started")
         server.wait_for_termination()
-        self.logger.info("Server shut down successfully")
+        self.logger.info("GRPC server shut down successfully")

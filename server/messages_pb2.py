@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0emessages.proto\"D\n\x12\x41nomalyDetResponse\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x0e\n\x06result\x18\x02 \x01(\x08\x12\x12\n\nseries_len\x18\x03 \x01(\x05\"D\n\nNumpyArray\x12\x0e\n\x06values\x18\x01 \x03(\x01\x12\x0c\n\x04rows\x18\x02 \x01(\x05\x12\x0c\n\x04\x63ols\x18\x03 \x01(\x05\x12\n\n\x02id\x18\x04 \x01(\x05\"\x1b\n\x08Response\x12\x0f\n\x07message\x18\x01 \x01(\t2M\n\x17\x41nomalyDetectionService\x12\x32\n\nStreamData\x12\x0b.NumpyArray\x1a\x13.AnomalyDetResponse(\x01\x30\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0emessages.proto\"T\n\x12\x41nomalyDetResponse\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x0e\n\x06result\x18\x02 \x01(\x08\x12\x12\n\nseries_len\x18\x03 \x01(\x05\x12\x0e\n\x06msg_id\x18\x04 \x01(\x05\"H\n\nNumpyArray\x12\x0e\n\x06values\x18\x01 \x03(\x01\x12\x0c\n\x04rows\x18\x02 \x01(\x05\x12\x0c\n\x04\x63ols\x18\x03 \x01(\x05\x12\x0e\n\x06msg_id\x18\x04 \x01(\x05\"\x1b\n\x08Response\x12\x0f\n\x07message\x18\x01 \x01(\t2M\n\x17\x41nomalyDetectionService\x12\x32\n\nStreamData\x12\x0b.NumpyArray\x1a\x13.AnomalyDetResponse(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -22,11 +22,11 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'messages_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ANOMALYDETRESPONSE']._serialized_start=18
-  _globals['_ANOMALYDETRESPONSE']._serialized_end=86
-  _globals['_NUMPYARRAY']._serialized_start=88
-  _globals['_NUMPYARRAY']._serialized_end=156
-  _globals['_RESPONSE']._serialized_start=158
-  _globals['_RESPONSE']._serialized_end=185
-  _globals['_ANOMALYDETECTIONSERVICE']._serialized_start=187
-  _globals['_ANOMALYDETECTIONSERVICE']._serialized_end=264
+  _globals['_ANOMALYDETRESPONSE']._serialized_end=102
+  _globals['_NUMPYARRAY']._serialized_start=104
+  _globals['_NUMPYARRAY']._serialized_end=176
+  _globals['_RESPONSE']._serialized_start=178
+  _globals['_RESPONSE']._serialized_end=205
+  _globals['_ANOMALYDETECTIONSERVICE']._serialized_start=207
+  _globals['_ANOMALYDETECTIONSERVICE']._serialized_end=284
 # @@protoc_insertion_point(module_scope)

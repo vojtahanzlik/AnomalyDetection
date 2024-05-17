@@ -4,11 +4,13 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 
 from MyClient import MyClient
+from mqtt_publisher import publish_data, mqtt_connect
 from helpers import get_logger
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 client = MyClient(socketio)
+publisher = mqtt_connect()
 logger = get_logger("Web Server")
 
 
@@ -38,6 +40,13 @@ def start_streaming(message):
 def stop_streaming(message):
     client.stop_streaming()
     logger.info("Stop streaming event")
+
+
+@socketio.on('wrong_prediction')
+def handle_wrong_prediction(data):
+    logger.info(f"Received wrong prediction signal for ID: {data['id']}")
+    prediction_res = True if data['prediction_res'] == "true" else False
+    publish_data(publisher, int(data['id']), prediction_res)
 
 
 if __name__ == '__main__':

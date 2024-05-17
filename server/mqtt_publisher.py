@@ -1,5 +1,6 @@
 import pickle
 
+import numpy as np
 import paho.mqtt.client as mqtt
 
 from helpers import get_logger
@@ -8,7 +9,7 @@ logger = get_logger("Mqtt Publisher")
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
-    logger.info("Connected with result code " + str(reason_code))
+    logger.info("Connected to MQTT broker with result code")
 
 
 def on_publish(client, userdata, mid, reason_code, properties):
@@ -24,11 +25,13 @@ def mqtt_connect():
     return mqtt_client
 
 
-def publish_data(client, array, prediction, identifier):
+def publish_data(client, array, prediction: bool, identifier: int, timestamps):
     data_bundle = {
         'array': array,
         'prediction': prediction,
-        'identifier': identifier
+        'identifier': identifier,
+        'timestamps': timestamps,
+        'update': False
     }
 
     client.publish("anomaly/predictions", pickle.dumps(data_bundle))

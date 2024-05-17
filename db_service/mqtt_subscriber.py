@@ -1,19 +1,21 @@
-import datetime
+from datetime import datetime
 import pickle
 
 import certifi
 import paho.mqtt.client as mqtt
-from influxdb_client_3 import InfluxDBClient3
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 
-token = "x4NKvlSG6Ll7FAaHI4TMnf1eOzjJgThBU07MRrNjacnLOZjrx_BpVBdFrWbUVBw1WeaQdBIZwGN2IOBICJB_RQ=="
-org = "FEL"
-host = "https://eu-central-1-1.aws.cloud2.influxdata.com"
-
-influx_client = InfluxDBClient3(host=host, database="Delta_Robot_Sensor_Data",
-                                org=org, token=token,
-                                ssl_ca_cert=certifi.where())
-
-time_step = 0.004
+mongotoken = "7VsHwuoa6fEtZMsEgiFspBPo6j7x33DS3jxnjyNzCKRGtSDDDrZZldIwVsip3Chl"
+uri = "mongodb+srv://deltarobot.sfzmqlm.mongodb.net/?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority&appName=DeltaRobot"
+mongo_client = MongoClient(uri,
+                           tls=True,
+                           tlsCertificateKeyFile='X509-cert-3280764759596531256.pem',
+                           server_api=ServerApi('1'),
+                           tlsCAFile=certifi.where())
+mongo_db = mongo_client['DeltaRobot']
+mongo_collection = mongo_db['time_series_predictions']
+#mongo_collection = mongo_db['force_torque_predictions']
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -32,34 +34,54 @@ def mqtt_connect():
 
 def on_message(client, userdata, msg):
     data_bundle = pickle.loads(msg.payload)
+    if data_bundle['update']:
+        handle_label_update_message(data_bundle)
+    else:
+        handle_prediction_message(data_bundle)
+
+
+def handle_label_update_message(data_bundle):
+    identifier = data_bundle['identifier']
+    curr_pred = data_bundle['curr_pred']
+
+    filter = {"identifier": identifier}
+    update = {
+        "$set": {"human_label": not curr_pred}}
+
+    result = mongo_collection.update_many(filter, update)
+    print(f"Result of DB update: {result}")
+
+
+def handle_prediction_message(data_bundle):
     array = data_bundle['array'].T
     array_len = array.shape[1]
     prediction = data_bundle['prediction']
     identifier = data_bundle['identifier']
-    start_time = datetime.datetime.now()
-    interval = datetime.timedelta(seconds=0.004)
-    timestamps = [start_time + i * interval for i in range(array_len)]
+    timestamps = data_bundle['timestamps']
+
     records = [
         {
-            "measurement": "time_series_segments",
-            "time": timestamps[i].isoformat() + "Z",
+            "identifier": identifier,
+            "timestamp": datetime.fromtimestamp(timestamps[i]),
             "fields": {
-                "field1": float(array[0][i]),
-                "field2": float(array[1][i]),
-                "field3": float(array[2][i]),
-                "field4": float(array[3][i]),
-                "field5": float(array[4][i]),
-                "field6": float(array[5][i]),
-                "prediction": prediction,
-                "identifier": identifier
-            }
+                "Force_x": float(array[0][i]),
+                "Force_y": float(array[1][i]),
+                "Force_z": float(array[2][i]),
+                "Torque_x": float(array[3][i]),
+                "Torque_y": float(array[4][i]),
+                "Torque_z": float(array[5][i]),
+            },
+            "prediction": prediction,
+            "human_label": None
         } for i in range(array_len)
     ]
 
-    influx_client.write(record=records, database="Delta_Robot_Sensor_Data")
-    print("Records written")
+    result = mongo_collection.insert_many(records)
+    print(f"Inserted {len(result.inserted_ids)} records into the database.")
 
 
 if __name__ == '__main__':
+    #result = mongo_collection.delete_many({})
+    #print(result)
     c = mqtt_connect()
     c.loop_forever()

@@ -9,14 +9,14 @@ message AnomalyDetResponse{
     int32 id = 1;
     bool result = 2;
     int32 series_len = 3;
+    int32 msg_id = 4;
 }
 
 message NumpyArray {
     repeated double values = 1;
     int32 rows = 2;
     int32 cols = 3;
-    int32 id = 4;
-
+    int32 msg_id = 4;
 }
 
 message Response {

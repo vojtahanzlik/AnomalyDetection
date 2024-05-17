@@ -3,6 +3,7 @@
 <head>
     <title>Real-time Predictions</title>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Roboto', sans-serif;
@@ -25,13 +26,16 @@
             background-color: #fff;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow-y: auto;
-            max-height: 400px;
+            max-height: 1000px;
         }
         .prediction-item {
             padding: 10px;
             margin-bottom: 10px;
             border-bottom: 1px solid #eee;
             color: #555;
+        }
+        .prediction-item.predicted-anomaly {
+            background-color: #ffdddd;
         }
         .prediction-item:last-child {
             border-bottom: none;
@@ -50,6 +54,12 @@
         button:hover {
             background-color: #0056b3;
         }
+        .wrong-btn {
+            background-color: #FF5733;
+        }
+        .wrong-btn:hover {
+            background-color: #C70039;
+        }
     </style>
     <script type="text/javascript">
     document.addEventListener('DOMContentLoaded', function() {
@@ -59,11 +69,11 @@
         });
 
         document.getElementById('startButton').addEventListener('click', function() {
-            socket.emit('start_streaming', {});  // Tell the server to start streaming
+            socket.emit('start_streaming', {});
         });
 
         document.getElementById('stopButton').addEventListener('click', function() {
-            socket.emit('stop_streaming', {});  // Tell the server to stop streaming
+            socket.emit('stop_streaming', {});
         });
 
         socket.on('update_predictions', function(predictions) {
@@ -72,12 +82,20 @@
             predictions.forEach(function(pred) {
                 var newPred = document.createElement('div');
                 newPred.classList.add('prediction-item');
-                newPred.textContent = 'Process identifier: ' + pred.id + ' - Result: ' + pred.result + ' - Time series length: ' + pred.series_len;
+                if (pred.result) {
+                    newPred.classList.add('predicted-anomaly');
+                }
+                var date = new Date(pred.timestamp * 1000);  // Convert Unix timestamp to JavaScript Date
+                newPred.innerHTML = date.toLocaleTimeString() + ' - Process identifier: ' + pred.id + ' - Result: ' + pred.result + ' - Time series length: ' + pred.series_len + ' <button class="wrong-btn" onclick="markAsWrong(\'' + pred.id + '\', \'' + pred.result + '\')">Mark as Wrong</button>';
                 predictionsElement.appendChild(newPred);
             });
         });
+
+        window.markAsWrong = function(predictionId, prediction) {
+            socket.emit('wrong_prediction', { id: predictionId, prediction_res: prediction });
+        }
     });
-</script>
+    </script>
 </head>
 <body>
     <h1>Real-time Anomaly Detection Results</h1>
