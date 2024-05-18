@@ -65,7 +65,7 @@ class ClientBase(ABC):
                     self.connect(self.address)
             self.stream_in_progress = False
 
-            with open('results.csv', 'w', newline='') as file:
+            with open(f"results{self.address}.csv", 'w', newline='') as file:
                 writer = csv.writer(file)
                 for key in messages_timestamps:
                     timestamps = messages_timestamps[key]

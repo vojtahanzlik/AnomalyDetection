@@ -2,7 +2,6 @@ import pickle
 from abc import abstractmethod, ABC
 
 import torch
-from PROD.models.lstmClassifier import lstmClassifier
 from PROD.models.featureClassifier import featureClassifier
 from PROD.models.deviationClassifier import deviationClassifier
 from helpers import get_logger

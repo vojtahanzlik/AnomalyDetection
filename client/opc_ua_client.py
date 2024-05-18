@@ -170,11 +170,14 @@ def main_realtime():
                 if packet_no % 2 == 0:  # edgeInterface[0]
                     hs_bit0 = 0
                     while hs_bit0 == 0:
-                        # print("waiting for handshake bit if0")
+                        print("waiting for handshake bit if0")
                         hs_bit0_read = eI0handsake_bit_node.get_data_value().Value.Value
                         hs_bit0 = hs_bit0_read
 
                     val = [node.get_data_value() for node in eI0sample_nodes]
+
+                    for i in range(num_of_traces):
+                        samples[i, packet_no * size_of_packet:(packet_no + 1) * size_of_packet] = val[i].Value.Value
 
                     time_val = [node.get_data_value() for node in
                                 [eI0time_stamp_first_sample_year_node, eI0time_stamp_first_sample_month_node,
@@ -188,11 +191,13 @@ def main_realtime():
                     (first_year, first_month, first_day, first_hour, first_minute, first_second, first_ns,
                      last_year, last_month, last_day, last_hour, last_minute, last_second, last_ns) = time_val
 
-                    first_timestamp = datetime(first_year, first_month, first_day, first_hour, first_minute,
-                                               first_second, first_ns).timestamp()
+                    first_timestamp = datetime(first_year.Value.Value, first_month.Value.Value, first_day.Value.Value,
+                                               first_hour.Value.Value, first_minute.Value.Value,
+                                               first_second.Value.Value, first_ns.Value.Value).timestamp()
 
-                    last_timestamp = datetime(last_year, last_month, last_day, last_hour, last_minute, last_second,
-                                              last_ns).timestamp()
+                    last_timestamp = datetime(last_year.Value.Value, last_month.Value.Value, last_day.Value.Value,
+                                              last_hour.Value.Value, last_minute.Value.Value, last_second.Value.Value,
+                                              last_ns.Value.Value).timestamp()
 
                     timestamps = np.linspace(start=first_timestamp, stop=last_timestamp, num=size_of_packet)
 
@@ -201,9 +206,9 @@ def main_realtime():
 
                     arr_to_stream = np.vstack((arr_to_stream, timestamps))
 
-                    yield arr_to_stream
-
                     eI0handsake_bit_node.set_value(DataValue(Variant(False, VariantType.Boolean)))
+
+                    yield arr_to_stream
 
                     if packet_no == 0:
                         first_sample_after_pretrigger_read = eI0first_sample_after_pretrigger_node.get_data_value().Value.Value
@@ -212,10 +217,13 @@ def main_realtime():
                 elif packet_no % 2 == 1:  # edgeInterface[1]
                     hs_bit1 = 0
                     while hs_bit1 == 0:
-                        # print("waiting for handshake bit if1")
+                        print("waiting for handshake bit if1")
                         hs_bit1_read = eI1handsake_bit_node.get_data_value().Value.Value
                         hs_bit1 = hs_bit1_read
                     val = [node.get_data_value() for node in eI0sample_nodes]
+
+                    for i in range(num_of_traces):
+                        samples[i, packet_no * size_of_packet:(packet_no + 1) * size_of_packet] = val[i].Value.Value
 
                     time_val = [node.get_data_value() for node in
                                 [eI1time_stamp_first_sample_year_node, eI1time_stamp_first_sample_month_node,
@@ -229,11 +237,13 @@ def main_realtime():
                     (first_year, first_month, first_day, first_hour, first_minute, first_second, first_ns,
                      last_year, last_month, last_day, last_hour, last_minute, last_second, last_ns) = time_val
 
-                    first_timestamp = datetime(first_year, first_month, first_day, first_hour, first_minute,
-                                               first_second, first_ns).timestamp()
+                    first_timestamp = datetime(first_year.Value.Value, first_month.Value.Value, first_day.Value.Value,
+                                               first_hour.Value.Value, first_minute.Value.Value,
+                                               first_second.Value.Value, first_ns.Value.Value).timestamp()
 
-                    last_timestamp = datetime(last_year, last_month, last_day, last_hour, last_minute, last_second,
-                                              last_ns).timestamp()
+                    last_timestamp = datetime(last_year.Value.Value, last_month.Value.Value, last_day.Value.Value,
+                                              last_hour.Value.Value, last_minute.Value.Value, last_second.Value.Value,
+                                              last_ns.Value.Value).timestamp()
 
                     timestamps = np.linspace(start=first_timestamp, stop=last_timestamp, num=size_of_packet)
 
@@ -242,9 +252,9 @@ def main_realtime():
 
                     arr_to_stream = np.vstack((arr_to_stream, timestamps))
 
-                    yield arr_to_stream
-
                     eI1handsake_bit_node.set_value(DataValue(Variant(False, VariantType.Boolean)))
+
+                    yield arr_to_stream
 
 
                 else:
@@ -436,22 +446,40 @@ def main():
                         hs_bit0 = hs_bit0_read
 
                     val = [node.get_data_value() for node in eI0sample_nodes]
+                    time_val = [node.get_data_value() for node in
+                                [eI0time_stamp_first_sample_year_node, eI0time_stamp_first_sample_month_node,
+                                 eI0time_stamp_first_sample_day_node, eI0time_stamp_first_sample_hours_node,
+                                 eI0time_stamp_first_sample_minutes_node, eI0time_stamp_first_sample_seconds_node,
+                                 eI0time_stamp_first_sample_ns_node, eI0time_stamp_last_sample_year_node,
+                                 eI0time_stamp_last_sample_month_node, eI0time_stamp_last_sample_day_node,
+                                 eI0time_stamp_last_sample_hours_node, eI0time_stamp_last_sample_minutes_node,
+                                 eI0time_stamp_last_sample_seconds_node, eI0time_stamp_last_sample_ns_node]]
+
+                    (first_year, first_month, first_day, first_hour, first_minute, first_second, first_ns,
+                     last_year, last_month, last_day, last_hour, last_minute, last_second, last_ns) = time_val
+
+                    first_timestamp = datetime(first_year.Value.Value, first_month.Value.Value, first_day.Value.Value,
+                                               first_hour.Value.Value, first_minute.Value.Value,
+                                               first_second.Value.Value, first_ns.Value.Value).timestamp()
+
+                    last_timestamp = datetime(last_year.Value.Value, last_month.Value.Value, last_day.Value.Value,
+                                              last_hour.Value.Value, last_minute.Value.Value, last_second.Value.Value,
+                                              last_ns.Value.Value).timestamp()
+
+                    timestamps = np.linspace(start=first_timestamp, stop=last_timestamp, num=size_of_packet)
+
+                    arr_to_stream = [val[i].Value.Value for i in range(4, 11)]
+                    arr_to_stream = np.array(arr_to_stream)
+
+                    arr_to_stream = np.vstack((arr_to_stream, timestamps))
+
+                    yield arr_to_stream
 
                     eI0handsake_bit_node.set_value(DataValue(Variant(False, VariantType.Boolean)))
 
                     for i in range(num_of_traces):
                         samples[i, packet_no * size_of_packet:(packet_no + 1) * size_of_packet] = val[i].Value.Value
 
-                    val = [node.get_data_value() for node in
-                           [eI0time_stamp_first_sample_year_node, eI0time_stamp_first_sample_month_node,
-                            eI0time_stamp_first_sample_day_node, eI0time_stamp_first_sample_hours_node,
-                            eI0time_stamp_first_sample_minutes_node, eI0time_stamp_first_sample_seconds_node,
-                            eI0time_stamp_first_sample_ns_node, eI0time_stamp_last_sample_year_node,
-                            eI0time_stamp_last_sample_month_node, eI0time_stamp_last_sample_day_node,
-                            eI0time_stamp_last_sample_hours_node, eI0time_stamp_last_sample_minutes_node,
-                            eI0time_stamp_last_sample_seconds_node, eI0time_stamp_last_sample_ns_node]]
-                    for i in range(14):
-                        time_first_and_last_matrix[i, packet_no] = val[i].Value.Value
 
                     if packet_no == 0:
                         first_sample_after_pretrigger_read = eI0first_sample_after_pretrigger_node.get_data_value().Value.Value
@@ -464,22 +492,40 @@ def main():
                         hs_bit1_read = eI1handsake_bit_node.get_data_value().Value.Value
                         hs_bit1 = hs_bit1_read
                     val = [node.get_data_value() for node in eI1sample_nodes]
+                    time_val = [node.get_data_value() for node in
+                                [eI1time_stamp_first_sample_year_node, eI1time_stamp_first_sample_month_node,
+                                 eI1time_stamp_first_sample_day_node, eI1time_stamp_first_sample_hours_node,
+                                 eI1time_stamp_first_sample_minutes_node, eI1time_stamp_first_sample_seconds_node,
+                                 eI1time_stamp_first_sample_ns_node, eI1time_stamp_last_sample_year_node,
+                                 eI1time_stamp_last_sample_month_node, eI1time_stamp_last_sample_day_node,
+                                 eI1time_stamp_last_sample_hours_node, eI1time_stamp_last_sample_minutes_node,
+                                 eI1time_stamp_last_sample_seconds_node, eI1time_stamp_last_sample_ns_node]]
 
+                    (first_year, first_month, first_day, first_hour, first_minute, first_second, first_ns,
+                     last_year, last_month, last_day, last_hour, last_minute, last_second, last_ns) = time_val
+
+                    first_timestamp = datetime(first_year.Value.Value, first_month.Value.Value, first_day.Value.Value,
+                                               first_hour.Value.Value, first_minute.Value.Value,
+                                               first_second.Value.Value, first_ns.Value.Value).timestamp()
+
+                    last_timestamp = datetime(last_year.Value.Value, last_month.Value.Value, last_day.Value.Value,
+                                              last_hour.Value.Value, last_minute.Value.Value, last_second.Value.Value,
+                                              last_ns.Value.Value).timestamp()
+
+                    timestamps = np.linspace(start=first_timestamp, stop=last_timestamp, num=size_of_packet)
+
+                    arr_to_stream = [val[i].Value.Value for i in range(4, 11)]
+                    arr_to_stream = np.array(arr_to_stream)
+
+                    arr_to_stream = np.vstack((arr_to_stream, timestamps))
+
+                    yield arr_to_stream
                     eI1handsake_bit_node.set_value(DataValue(Variant(False, VariantType.Boolean)))
 
                     for i in range(num_of_traces):
                         samples[i, packet_no * size_of_packet:(packet_no + 1) * size_of_packet] = val[i].Value.Value
 
-                    val = [node.get_data_value() for node in
-                           [eI1time_stamp_first_sample_year_node, eI1time_stamp_first_sample_month_node,
-                            eI1time_stamp_first_sample_day_node, eI1time_stamp_first_sample_hours_node,
-                            eI1time_stamp_first_sample_minutes_node, eI1time_stamp_first_sample_seconds_node,
-                            eI1time_stamp_first_sample_ns_node, eI1time_stamp_last_sample_year_node,
-                            eI1time_stamp_last_sample_month_node, eI1time_stamp_last_sample_day_node,
-                            eI1time_stamp_last_sample_hours_node, eI1time_stamp_last_sample_minutes_node,
-                            eI1time_stamp_last_sample_seconds_node, eI1time_stamp_last_sample_ns_node]]
-                    for i in range(14):
-                        time_first_and_last_matrix[i, packet_no] = val[i].Value.Value
+
 
                 else:
                     raise ValueError('Invalid index of edgeInterface')
@@ -498,11 +544,11 @@ def main():
             # selected_cols = transposed_array[:, 4:10]
 
             selected_rows = samples[4:11, :]
-            yield selected_rows
+            #yield selected_rows
             print('Done')
+            yield None
 
 
 if __name__ == "__main__":
-    main()
-    for a in main_realtime():
+    for a in main():
         print(a)

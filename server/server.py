@@ -1,11 +1,12 @@
+import csv
 import pickle
 
 from concurrent import futures
+from datetime import datetime
 from typing import List
 from multiprocessing.pool import ThreadPool
 import grpc
 import numpy as np
-from PROD.models.lstmClassifier import lstmClassifier
 from Classifier import ClassifierFactory
 from helpers import get_logger
 from messages_pb2 import AnomalyDetResponse
@@ -27,7 +28,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         self.address = address
         self.logger = get_logger(self.__class__.__name__)
 
-        self.my_classifier = ClassifierFactory.load_classifier("models/FEATURE_MODEL_TEST.pkl")
+        self.my_classifier = ClassifierFactory.load_classifier("models/DEVIATION_MODEL_TEST.pkl")
 
         self.num_of_features = 6
         self.num_of_input_rows = 8
@@ -38,6 +39,8 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
 
         self.prev_pred_input = None
         self.curr_num_of_segments = 0
+        self.results = []
+
     def StreamData(self, request_iterator, context):
         self.logger.info("Received SendNumpyArray stream request")
         if not request_iterator:
@@ -57,6 +60,14 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
 
         self.prev_pred_input = None
         self.logger.info("STREAMING DONE")
+        with open(f"results{self.my_classifier.__class__.__name__}_{self.address}.csv", 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["id", "duration", "pred", "arr_len"])
+            for record in self.results:
+                duration = record[1]
+                res = record[2]
+                arr_len = record[3]
+                writer.writerow([record[0], duration, res, arr_len])
 
     def _process_non_zero_segments(self, non_zero_segments, msg_id):
         for segment in non_zero_segments:
@@ -64,24 +75,46 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
             if self.prev_pred_input is None:
                 curr_pred_input = segment
                 self.curr_num_of_segments = 1
+                self.prev_pred_input = curr_pred_input
 
             elif int(np.max(self.prev_pred_input[self.identifier_idx])) == arr_identifier:
+
                 curr_pred_input = np.hstack((self.prev_pred_input, segment))
+
                 self.curr_num_of_segments += 1
+                self.prev_pred_input = curr_pred_input
 
             else:  # last segment of current identifier
                 curr_pred_input = segment
                 self.curr_num_of_segments = 1
+                self.prev_pred_input = None
 
-            self.prev_pred_input = curr_pred_input
+
             res = self._attempt_prediction(curr_pred_input, arr_identifier, msg_id)
             yield res
 
     def _attempt_prediction(self, input_arr, arr_id: int, msg_id: int):
         arr_to_predict, timestamp_row = self._prep_arr_for_prediction(input_arr)
         arr_len = arr_to_predict.shape[0]
-        res = self.my_classifier.predict(arr_to_predict)
+
+        start = datetime.now()
+        try:
+            res = self.my_classifier.predict(arr_to_predict)
+        except Exception as e:
+            print(e)
+            print(arr_id)
+            print(np.shape(arr_to_predict))
+            print(np.shape(self.prev_pred_input))
+            res = None
+
+        stop = datetime.now()
+
         if res is not None:
+            duration = stop - start
+
+            duration = duration.total_seconds() * 1000
+            self.logger.info(f"Prediction done in {duration} ms")
+            self.results.append([arr_id, duration, res, arr_len])
             self.logger.info(f"Send SendNumpyArray response: result: {res}, id: {arr_id}"
                              f", time series length: {arr_len}")
             if self.curr_num_of_segments >= 3:

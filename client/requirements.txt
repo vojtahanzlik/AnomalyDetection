@@ -11,3 +11,4 @@ tslearn
 cryptography
 requests
 paho-mqtt
+flask

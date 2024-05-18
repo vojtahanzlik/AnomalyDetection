@@ -5,7 +5,7 @@ from flask_socketio import SocketIO
 import numpy as np
 from client import ClientBase
 from messages_pb2 import NumpyArray
-from opc_ua_client import main_realtime
+from opc_ua_client import main
 from client import messages_timestamps
 
 
@@ -17,7 +17,7 @@ class MyClient(ClientBase):
 
     def yield_test(self):
         prev_last_timestamp = 0
-        for i in range(2, 6):
+        for i in range(0, 8):
             data = np.load(f"test_samples/samples{i}.npy")
             selected_rows = data[4:11, :]
 
@@ -37,9 +37,13 @@ class MyClient(ClientBase):
 
     def _stream_messages(self) -> Iterator[NumpyArray]:
         id = 0
-        for array in self.yield_test():
+        for array in main():
             if self.stop_stream:
                 break
+            if array is None:
+                self.logger.info("Streaming round done")
+                continue
+
             rows = array.shape[0]
             cols = array.shape[1]
             vals = array.flatten()
@@ -47,5 +51,4 @@ class MyClient(ClientBase):
             messages_timestamps.update({id: [datetime.now()]})
             request = NumpyArray(values=vals, rows=rows, cols=cols, msg_id=id)
             id += 1
-            sleep(2)
             yield request

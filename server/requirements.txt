@@ -12,4 +12,5 @@ cryptography
 flask
 flask_socketio
 requests
-"pymongo[srv]"
+pymongo[srv]
+asyncio
