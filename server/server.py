@@ -1,9 +1,7 @@
 import csv
-import pickle
 
 from concurrent import futures
 from datetime import datetime
-from typing import List
 from multiprocessing.pool import ThreadPool
 import grpc
 import numpy as np
@@ -16,19 +14,61 @@ from mqtt_publisher import publish_data, mqtt_connect
 pool = ThreadPool(processes=2)
 
 
-def rpc_request_arr_to_np_arr(request):
+def rpc_request_arr_to_np_arr(request) -> np.ndarray:
+    """
+    Converts the gRPC request data to a numpy array.
+
+    Args:
+        request: The gRPC request containing array data.
+
+    Returns:
+        np.ndarray: The converted numpy array.
+    """
     rows = request.rows
     cols = request.cols
     values = list(request.values)
     return np.array(values).reshape((rows, cols))
 
 
+def add_to_buffer(buffer: dict, arr: np.ndarray, uid: int) -> bool:
+    """
+    Adds data to the buffer for a specific UID.
+
+    Args:
+        buffer (dict): The buffer dictionary.
+        arr (np.ndarray): The array to add to the buffer.
+        uid (int): The unique identifier.
+
+    Returns:
+        bool: True if the array was added, False otherwise.
+    """
+    buffer_arr = buffer[uid][0]
+    if buffer_arr.shape[0] == arr.shape[0]:
+        buffer[uid][0] = np.hstack((buffer_arr, arr))
+        return True
+    return False
+
+
 class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
+    """
+        gRPC server for anomaly detection service.
+
+        Attributes:
+            address (str): The address of the server.
+            logger: Logger instance.
+            my_classifier (ClassifierBase): The classifier used for anomaly detection.
+            num_of_features (int): Number of features in the input array.
+            num_of_input_rows (int): Number of rows in the input array.
+            identifier_idx (int): Index of the identifier in the input array.
+            timestamp_idx (int): Index of the timestamp in the input array.
+            publisher (mqtt.Client): MQTT client instance.
+            results (list): List of results.
+        """
     def __init__(self, address: str = '0.0.0.0:8061'):
         self.address = address
         self.logger = get_logger(self.__class__.__name__)
 
-        self.my_classifier = ClassifierFactory.load_classifier("models/DEVIATION_MODEL_TEST.pkl")
+        self.my_classifier = ClassifierFactory.load_classifier("models/FEATURE_MODEL_TEST.pkl")
 
         self.num_of_features = 6
         self.num_of_input_rows = 8
@@ -37,130 +77,158 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
 
         self.publisher = mqtt_connect()
 
-        self.prev_pred_input = None
-        self.curr_num_of_segments = 0
         self.results = []
 
     def StreamData(self, request_iterator, context):
-        self.logger.info("Received SendNumpyArray stream request")
+        """
+        Streams data from the client, processes it, and sends responses.
+
+        Args:
+            request_iterator: Iterator for the incoming requests.
+            context: The gRPC context.
+
+        Returns:
+            Iterator[AnomalyDetResponse]: The responses containing anomaly detection results.
+        """
+        self.logger.info("Stream initiated")
         if not request_iterator:
             self.logger.error("Invalid request iterator")
             raise grpc.RpcError
+
+        buffer = dict()
+        current_ids = set()
         for request in request_iterator:
-            msg_id = request.msg_id
-            self.logger.info("Received SendNumpyArray request")
-            array = rpc_request_arr_to_np_arr(request)
-            self.logger.info("Request converted to np array")
+            for response in self.process_request(request, buffer, current_ids):
+                yield response
+        self.finalize_buffers(current_ids)
+        self.write_results_to_csv()
 
-            segments_lst = self.get_non_zero_segments(array)
+    def process_request(self, request, buffer, current_ids):
+        """
+        Processes each request, updating the buffer and yielding responses.
 
-            if len(segments_lst) != 0:
-                for pred in self._process_non_zero_segments(segments_lst, msg_id):
-                    yield pred
+        Args:
+            request: The incoming request.
+            buffer: The buffer dictionary storing data arrays.
+            current_ids: Set of current unique identifiers.
+        """
+        msg_id = request.msg_id
+        self.logger.info("Received request")
+        array = rpc_request_arr_to_np_arr(request)
+        identifiers = array[6]
+        unique_ids = np.unique(identifiers)
 
-        self.prev_pred_input = None
+        for uid in unique_ids:
+            if uid == 0:
+                continue
+            response = self.process_unique_id(uid, identifiers, array, buffer, current_ids, msg_id)
+            if response:
+                yield response
+        self.handle_zero_identifiers(identifiers, buffer, current_ids)
+
+    def process_unique_id(self, uid, identifiers, array, buffer, current_ids, msg_id):
+        """
+        Processes each unique identifier in the request.
+
+        Args:
+            uid: The unique identifier.
+            identifiers: Array of identifiers from the request.
+            array: Data array from the request.
+            buffer: The buffer dictionary storing data arrays.
+            current_ids: Set of current unique identifiers.
+            msg_id: The message ID of the request.
+        """
+        non_zero_indices = np.where(identifiers == uid)[0]
+        uid = int(uid)
+        if uid not in current_ids:
+            if uid in buffer:
+                add_to_buffer(buffer, array[:, non_zero_indices], uid)
+            else:
+                buffer[uid] = [array[:, non_zero_indices], None]
+            current_ids.add(uid)
+        else:
+            add_to_buffer(buffer, array[:, non_zero_indices], uid)
+
+        pred_res, arr_len = self._run_prediction(buffer[uid][0], uid)
+        buffer[uid][1] = pred_res
+        if pred_res is not None:
+            self.logger.info(
+                f"Send SendNumpyArray response: result: {pred_res}, id: {uid}, time series length: {arr_len}")
+            return AnomalyDetResponse(id=uid, result=pred_res, series_len=arr_len, msg_id=msg_id)
+
+    def handle_zero_identifiers(self, identifiers, buffer, current_ids):
+        """
+        Handles cases where identifiers flip to zero, publishing data and clearing buffers.
+
+        Args:
+            identifiers: Array of identifiers from the request.
+            buffer: The buffer dictionary storing data arrays.
+            current_ids: Set of current unique identifiers.
+        """
+        zero_indices = np.where(identifiers == 0)[0]
+        if zero_indices.size > 0:
+            for uid in list(current_ids):
+                non_zero_indices = np.where(identifiers == uid)[0]
+                if non_zero_indices.size == 0:
+                    timestamp_row = buffer[uid][0][self.timestamp_idx, :]
+                    pool.apply_async(publish_data, (self.publisher, buffer[uid][0], buffer[uid][1], uid, timestamp_row))
+                    del buffer[uid]
+                    current_ids.remove(uid)
+                    self.logger.info(f"Buffer for identifier {uid} completed and cleared.")
+
+    def finalize_buffers(self, current_ids):
+        """
+        Finalizes the buffers by logging completion for each identifier.
+
+        Args:
+            current_ids: Set of current unique identifiers.
+        """
+        for uid in current_ids:
+            self.logger.info(f"Final buffer for identifier {uid} completed.")
         self.logger.info("STREAMING DONE")
-        with open(f"results{self.my_classifier.__class__.__name__}_{self.address}.csv", 'w', newline='') as file:
+
+    def write_results_to_csv(self):
+        """
+        Writes the results to a CSV file.
+        """
+        timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        safe_address = self.address.replace(':', '_')
+        with open(
+                f"results/results_{self.my_classifier.__class__.__name__}_{safe_address}_{timestamp}.csv", 'w', newline=''
+        ) as file:
             writer = csv.writer(file)
-            writer.writerow(["id", "duration", "pred", "arr_len"])
+            writer.writerow(["id", "duration_ms", "pred", "arr_len"])
             for record in self.results:
                 duration = record[1]
                 res = record[2]
                 arr_len = record[3]
                 writer.writerow([record[0], duration, res, arr_len])
+                file.flush()
 
-    def _process_non_zero_segments(self, non_zero_segments, msg_id):
-        for segment in non_zero_segments:
-            arr_identifier = int(np.max(segment[self.identifier_idx]))
-            if self.prev_pred_input is None:
-                curr_pred_input = segment
-                self.curr_num_of_segments = 1
-                self.prev_pred_input = curr_pred_input
-
-            elif int(np.max(self.prev_pred_input[self.identifier_idx])) == arr_identifier:
-
-                curr_pred_input = np.hstack((self.prev_pred_input, segment))
-
-                self.curr_num_of_segments += 1
-                self.prev_pred_input = curr_pred_input
-
-            else:  # last segment of current identifier
-                curr_pred_input = segment
-                self.curr_num_of_segments = 1
-                self.prev_pred_input = None
-
-
-            res = self._attempt_prediction(curr_pred_input, arr_identifier, msg_id)
-            yield res
-
-    def _attempt_prediction(self, input_arr, arr_id: int, msg_id: int):
-        arr_to_predict, timestamp_row = self._prep_arr_for_prediction(input_arr)
+    def _run_prediction(self, input_arr, uid):
+        arr_to_predict = self._prep_arr_for_prediction(input_arr)
         arr_len = arr_to_predict.shape[0]
 
-        start = datetime.now()
         try:
+            start = datetime.now()
             res = self.my_classifier.predict(arr_to_predict)
-        except Exception as e:
-            print(e)
-            print(arr_id)
-            print(np.shape(arr_to_predict))
-            print(np.shape(self.prev_pred_input))
-            res = None
-
-        stop = datetime.now()
-
-        if res is not None:
+            stop = datetime.now()
             duration = stop - start
-
             duration = duration.total_seconds() * 1000
             self.logger.info(f"Prediction done in {duration} ms")
-            self.results.append([arr_id, duration, res, arr_len])
-            self.logger.info(f"Send SendNumpyArray response: result: {res}, id: {arr_id}"
-                             f", time series length: {arr_len}")
-            if self.curr_num_of_segments >= 3:
-                pool.apply_async(publish_data, (self.publisher, arr_to_predict, res, arr_id, timestamp_row))
-                self.curr_num_of_segments = 0
-            return AnomalyDetResponse(id=arr_id, result=res, series_len=arr_len, msg_id=msg_id)
+            self.results.append([uid, duration, res, arr_len])
+        except Exception as e:
+            print(e)
+            print(np.shape(arr_to_predict))
+            res = None, arr_len
+
+        if res is not None:
+            return res, arr_len
 
     def _prep_arr_for_prediction(self, arr):
-        timestamp_row = arr[self.timestamp_idx, :]
         arr = np.delete(arr, self.identifier_idx, axis=0)
         arr = np.delete(arr, self.timestamp_idx - 1, axis=0)
-        return arr.T, timestamp_row
-
-    def get_non_zero_segments(self, array) -> List[tuple]:
-        ids = self._extract_identifiers(array)
-        if ids.size == 0:
-            return []
-        return self._split_by_ids(array, ids)
-
-    def _split_by_ids(self, array, ids) -> list:
-        ret = []
-
-        for i in ids:
-            non_zero_id_series = self._extract_non_zero_id_series(array, i)
-            if len(non_zero_id_series) != 0:
-                ret.append(non_zero_id_series)
-
-        return ret
-
-    def _extract_identifiers(self, array):
-        identifier_arr = array[self.identifier_idx]
-        self.logger.info("Extracted identifier array")
-        unique_ids = np.unique(identifier_arr[identifier_arr != 0])
-        return unique_ids
-
-    def _extract_non_zero_id_series(self, data, id):
-        non_zero_idxs = np.where(data[self.identifier_idx, :] == id)[0]
-        if len(non_zero_idxs) == 0:
-            return []
-        start = non_zero_idxs[0]
-        end = non_zero_idxs[-1]
-        sliced_data = data[:, start:end + 1]
-        return sliced_data
-
-    def _append_to_time_series(self, array, time_series):
-        return np.concatenate((time_series, array), axis=1)
+        return arr.T
 
     def serve(self):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=3))

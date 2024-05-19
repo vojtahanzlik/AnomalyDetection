@@ -19,13 +19,30 @@ mongo_collection = mongo_db['time_series_predictions']
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
-    print("Connected with result code " + str(reason_code))
+    """
+    Callback for when the client receives a CONNACK response from the server.
+    Subscribes to a topic.
+
+    Args:
+        client: The client instance for this callback.
+        userdata: The private user data as set in Client().
+        flags: Response flags sent by the broker.
+        reason_code: The connection result.
+        properties: The properties associated with the connection.
+    """
+    print(f"Connected to MQTT broker with {reason_code}")
     mqtt_client = client
     mqtt_client.subscribe("anomaly/predictions")
     mqtt_client.on_message = on_message
 
 
 def mqtt_connect():
+    """
+    Connects to the MQTT broker and starts the loop.
+
+    Returns:
+        mqtt.Client: The MQTT client instance.
+    """
     mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     mqtt_client.on_connect = on_connect
     mqtt_client.connect("broker.hivemq.com")
@@ -33,6 +50,14 @@ def mqtt_connect():
 
 
 def on_message(client, userdata, msg):
+    """
+    Callback function to handle incoming MQTT messages.
+
+    Args:
+        client: The MQTT client instance.
+        userdata: The private user data as set in Client() or userdata_set().
+        msg: The message instance containing topic and payload.
+    """
     data_bundle = pickle.loads(msg.payload)
     if data_bundle['update']:
         handle_label_update_message(data_bundle)
@@ -41,6 +66,14 @@ def on_message(client, userdata, msg):
 
 
 def handle_label_update_message(data_bundle):
+    """
+    Handles incoming messages that update labels in the database.
+
+    Args:
+        data_bundle (dict): The data bundle containing update information.
+            - 'identifier' (int): The identifier of the data.
+            - 'curr_pred' (bool): The current prediction value.
+    """
     identifier = data_bundle['identifier']
     curr_pred = data_bundle['curr_pred']
 
@@ -53,6 +86,16 @@ def handle_label_update_message(data_bundle):
 
 
 def handle_prediction_message(data_bundle):
+    """
+       Handles incoming messages that contain prediction data and stores them in the database.
+
+       Args:
+           data_bundle (dict): The data bundle containing prediction information.
+               - 'array' (list): The array of prediction data.
+               - 'prediction' (bool): The prediction result.
+               - 'identifier' (int): The identifier of the data.
+               - 'timestamps' (list): The list of timestamps corresponding to the data.
+       """
     array = data_bundle['array'].T
     array_len = array.shape[1]
     prediction = data_bundle['prediction']
