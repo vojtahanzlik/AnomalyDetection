@@ -64,10 +64,10 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
             publisher (mqtt.Client): MQTT client instance.
             results (list): List of results.
         """
-    def __init__(self, address: str = '0.0.0.0:8061'):
+    def __init__(self, address: str = '0.0.0.0:8061', save_res: bool = False):
         self.address = address
         self.logger = get_logger(self.__class__.__name__)
-
+        self.save_res = save_res
         self.my_classifier = ClassifierFactory.load_classifier("models/FEATURE_MODEL_TEST.pkl")
 
         self.num_of_features = 6
@@ -101,9 +101,11 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
             for response in self.process_request(request, buffer, current_ids):
                 yield response
         self.finalize_buffers(current_ids)
-        self.write_results_to_csv()
+        if self.save_res:
+            self.write_results_to_csv()
+        self.results = []
 
-    def process_request(self, request, buffer, current_ids):
+    def process_request(self, request, buffer: dict, current_ids: set):
         """
         Processes each request, updating the buffer and yielding responses.
 
@@ -126,7 +128,8 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
                 yield response
         self.handle_zero_identifiers(identifiers, buffer, current_ids)
 
-    def process_unique_id(self, uid, identifiers, array, buffer, current_ids, msg_id):
+    def process_unique_id(self, uid, identifiers: np.ndarray, array: np.ndarray,
+                          buffer: dict, current_ids: set, msg_id: int):
         """
         Processes each unique identifier in the request.
 
@@ -156,7 +159,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
                 f"Send SendNumpyArray response: result: {pred_res}, id: {uid}, time series length: {arr_len}")
             return AnomalyDetResponse(id=uid, result=pred_res, series_len=arr_len, msg_id=msg_id)
 
-    def handle_zero_identifiers(self, identifiers, buffer, current_ids):
+    def handle_zero_identifiers(self, identifiers: np.ndarray, buffer: dict, current_ids: set):
         """
         Handles cases where identifiers flip to zero, publishing data and clearing buffers.
 
@@ -176,7 +179,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
                     current_ids.remove(uid)
                     self.logger.info(f"Buffer for identifier {uid} completed and cleared.")
 
-    def finalize_buffers(self, current_ids):
+    def finalize_buffers(self, current_ids: set):
         """
         Finalizes the buffers by logging completion for each identifier.
 
@@ -205,7 +208,17 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
                 writer.writerow([record[0], duration, res, arr_len])
                 file.flush()
 
-    def _run_prediction(self, input_arr, uid):
+    def _run_prediction(self, input_arr: np.ndarray, uid: int):
+        """
+        Prepares the input array for prediction, runs the prediction, and logs the results.
+
+        Args:
+            input_arr (np.ndarray): The input array for prediction.
+            uid (int): The unique identifier for the current prediction.
+
+        Returns:
+            tuple: The prediction result and the length of the input array.
+        """
         arr_to_predict = self._prep_arr_for_prediction(input_arr)
         arr_len = arr_to_predict.shape[0]
 
@@ -225,12 +238,26 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         if res is not None:
             return res, arr_len
 
-    def _prep_arr_for_prediction(self, arr):
+    def _prep_arr_for_prediction(self, arr: np.ndarray):
+        """
+        Prepares the array for prediction by removing specific rows and transposing the array.
+
+        Args:
+            arr (np.ndarray): The input array to be prepared.
+
+        Returns:
+            np.ndarray: The prepared array.
+        """
         arr = np.delete(arr, self.identifier_idx, axis=0)
         arr = np.delete(arr, self.timestamp_idx - 1, axis=0)
         return arr.T
 
     def serve(self):
+        """
+        Starts the gRPC server and waits for termination.
+
+        The server listens for incoming connections and handles requests using the defined services.
+        """
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=3))
         add_AnomalyDetectionServiceServicer_to_server(self, server)
         server.add_insecure_port(self.address)

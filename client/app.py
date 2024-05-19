@@ -9,7 +9,6 @@ from helpers import get_logger
 
 app = Flask(__name__)
 socketio = SocketIO(app)
-client = MyClient(socketio)
 publisher = mqtt_connect()
 logger = get_logger("Web Server")
 
@@ -50,4 +49,5 @@ def handle_wrong_prediction(data):
 
 
 if __name__ == '__main__':
+    client = MyClient(socketio)
     run_webserver(client.predictions)

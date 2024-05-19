@@ -29,14 +29,14 @@ class ClientBase(ABC):
         stream_in_progress: Flag indicating if data streaming is in progress.
     """
 
-    def __init__(self, socket: SocketIO, address='localhost:8061'):
+    def __init__(self, socket: SocketIO, address='localhost:8061', save_res: bool = False):
         self.stub = None
         self.logger = get_logger(self.__class__.__name__)
         self.address = address
         self.connect(address)
         self.socket = socket
         self.predictions = deque(maxlen=20)
-
+        self.save_res = save_res
         self.stream_in_progress = False
 
     @abstractmethod
@@ -60,11 +60,14 @@ class ClientBase(ABC):
                 stop_stream = False
                 response_iterator = self.stub.StreamData(self._stream_messages())
                 for response in response_iterator:
-                    messages_timestamps[response.msg_id].append(datetime.datetime.now())
-
                     time_series_identifier = int(response.id)
                     time_series_len = int(response.series_len)
                     pred = bool(response.result)
+
+                    messages_timestamps[response.msg_id].append(datetime.datetime.now())
+                    messages_timestamps[response.msg_id].append(time_series_identifier)
+                    messages_timestamps[response.msg_id].append(time_series_len)
+                    messages_timestamps[response.msg_id].append(pred)
 
                     self.predictions.append(
                         {'id': time_series_identifier,
@@ -83,20 +86,20 @@ class ClientBase(ABC):
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     self.connect(self.address)
             self.stream_in_progress = False
-
-            self.save_to_csv()
+            if self.save_res:
+                self.save_to_csv()
 
     def save_to_csv(self):
         timestamp = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         safe_address = self.address.replace(':', '_')
         with open(f"results/results_{safe_address}_{timestamp}.csv", 'w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow(["id", "duration"])
+            writer.writerow(["msg_id", "duration", "id", "length", "res"])
             for key in messages_timestamps:
                 timestamps = messages_timestamps[key]
                 if len(timestamps) > 1:
                     duration = timestamps[1] - timestamps[0]
-                    writer.writerow([key, duration.total_seconds() * 1000])
+                    writer.writerow([key, duration.total_seconds() * 1000, timestamps[2], timestamps[3], timestamps[4]])
 
     def connect(self, address: str):
         """

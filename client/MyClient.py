@@ -66,7 +66,6 @@ class MyClient(ClientBase):
             rows = array.shape[0]
             cols = array.shape[1]
             vals = array.flatten()
-            sleep(1)
             client.messages_timestamps.update({id: [datetime.now()]})
             request = NumpyArray(values=vals, rows=rows, cols=cols, msg_id=id)
             id += 1
