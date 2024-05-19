@@ -98,9 +98,11 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
 
         buffer = dict()
         current_ids = set()
+
         for request in request_iterator:
             for response in self.process_request(request, buffer, current_ids):
                 yield response
+
         self.finalize_buffers(current_ids)
         if self.save_res:
             self.write_results_to_csv()
@@ -115,6 +117,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
             buffer: The buffer dictionary storing data arrays.
             current_ids: Set of current unique identifiers.
         """
+        start = datetime.now()
         msg_id = request.msg_id
         self.logger.info("Received request")
         array = rpc_request_arr_to_np_arr(request)
@@ -125,6 +128,10 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
             if uid == 0:
                 continue
             response = self.process_unique_id(uid, identifiers, array, buffer, current_ids, msg_id)
+            stop = datetime.now()
+            duration = stop - start
+            duration = duration.total_seconds() * 1000
+            self.logger.info(f"Message processed in {duration} ms")
             if response:
                 yield response
         self.handle_zero_identifiers(identifiers, buffer, current_ids)
