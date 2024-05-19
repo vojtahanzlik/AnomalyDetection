@@ -10,3 +10,4 @@ tslearn
 cryptography
 requests
 asyncio
+ctuFaultDetector

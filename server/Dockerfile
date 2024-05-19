@@ -4,7 +4,6 @@ WORKDIR /app
 
 COPY ./requirements.txt /app
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
-RUN pip install -i https://test.pypi.org/pypi/ --extra-index-url https://pypi.org/simple anomaly-det-model
 
 COPY . /app
 
