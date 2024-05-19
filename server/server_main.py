@@ -1,7 +1,7 @@
 import os
 import sys
-
 from server import AnomalyDetectionServer
+from helpers import parse_args
 
 if __name__ == '__main__':
     if sys.platform.lower() == "win32" or os.name.lower() == "nt":
@@ -9,5 +9,6 @@ if __name__ == '__main__':
 
         set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 
-    server = AnomalyDetectionServer()
+    args = parse_args()
+    server = AnomalyDetectionServer(address=args.address, save_res=args.save, model=args.model)
     server.serve()

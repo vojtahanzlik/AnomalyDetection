@@ -9,12 +9,14 @@ from messages_pb2 import NumpyArray
 from opc_ua_client import run_opc_ua
 import client
 
+
 class MyClient(ClientBase):
     """
     A specific client implementation for connecting to an OPC UA server and streaming data.
     """
-    def __init__(self, socket: SocketIO):
-        super().__init__(socket)
+
+    def __init__(self, socket: SocketIO, address='localhost:8061', save_res: bool = True):
+        super().__init__(socket, address, save_res)
         self.data_point_interval = 0.004
 
     def yield_test(self):

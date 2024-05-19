@@ -64,11 +64,12 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
             publisher (mqtt.Client): MQTT client instance.
             results (list): List of results.
         """
-    def __init__(self, address: str = '0.0.0.0:8061', save_res: bool = False):
-        self.address = address
+    def __init__(self, address: str = '0.0.0.0:8061', save_res: bool = True, model: str = "FEATURE.pkl"):
+        self.address = address if address is not None else '0.0.0.0:8061'
         self.logger = get_logger(self.__class__.__name__)
-        self.save_res = save_res
-        self.my_classifier = ClassifierFactory.load_classifier("models/FEATURE_MODEL_TEST.pkl")
+        self.save_res = save_res if save_res is not None else True
+        model = model if model is not None else "FEATURE.pkl"
+        self.my_classifier = ClassifierFactory.load_classifier(f"models/{model}")
 
         self.num_of_features = 6
         self.num_of_input_rows = 8
@@ -262,6 +263,6 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         add_AnomalyDetectionServiceServicer_to_server(self, server)
         server.add_insecure_port(self.address)
         server.start()
-        self.logger.info("GRPC server started")
+        self.logger.info(f"GRPC server started on address {self.address}")
         server.wait_for_termination()
         self.logger.info("GRPC server shut down successfully")

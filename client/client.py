@@ -7,7 +7,7 @@ from typing import Iterator
 from flask_socketio import SocketIO
 import grpc
 from grpc._channel import _MultiThreadedRendezvous
-
+import argparse
 from messages_pb2 import NumpyArray
 from messages_pb2_grpc import AnomalyDetectionServiceStub
 from helpers import get_logger
@@ -29,14 +29,14 @@ class ClientBase(ABC):
         stream_in_progress: Flag indicating if data streaming is in progress.
     """
 
-    def __init__(self, socket: SocketIO, address='localhost:8061', save_res: bool = False):
+    def __init__(self, socket: SocketIO, address='localhost:8061', save_res: bool = True):
         self.stub = None
         self.logger = get_logger(self.__class__.__name__)
-        self.address = address
-        self.connect(address)
+        self.address = address if address is not None else 'localhost:8061'
+        self.connect(self.address)
         self.socket = socket
         self.predictions = deque(maxlen=20)
-        self.save_res = save_res
+        self.save_res = save_res if save_res is not None else True
         self.stream_in_progress = False
 
     @abstractmethod

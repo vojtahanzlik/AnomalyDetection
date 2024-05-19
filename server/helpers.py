@@ -1,3 +1,4 @@
+import argparse
 import logging
 import sys
 import threading
@@ -17,6 +18,20 @@ def get_logger(name):
     root_logger.addHandler(console_handler)
     root_logger.setLevel(logging.DEBUG)
     return root_logger
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--save', type=bool, nargs='?',
+                        help='Saves results to csv, default True')
+
+    parser.add_argument('--address', type=str, nargs='?',
+                        help='Address of the grpc server of format ip:port, default localhost')
+
+    parser.add_argument('--model', type=str, nargs='?',
+                        help='Name of a ml model located in the models folder, including file ext')
+    args = parser.parse_args()
+    return args
 
 
 class UniqueQueue:

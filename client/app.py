@@ -6,6 +6,7 @@ from flask_socketio import SocketIO, emit
 from MyClient import MyClient
 from mqtt_publisher import publish_data, mqtt_connect
 from helpers import get_logger
+from helpers import parse_args
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -18,12 +19,12 @@ def index():
     return render_template('index.html')
 
 
-def run_webserver(predictions):
+def run_webserver(predictions, port: int):
     @socketio.on('connect')
     def test_connect():
         emit('update_predictions', list(predictions))
-
-    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    port = port if port is not None else 5000
+    socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
 
 
 @socketio.on('start_streaming')
@@ -49,5 +50,7 @@ def handle_wrong_prediction(data):
 
 
 if __name__ == '__main__':
-    client = MyClient(socketio)
-    run_webserver(client.predictions)
+    args = parse_args()
+
+    client = MyClient(socketio, save_res=args.save, address=args.address)
+    run_webserver(client.predictions, args.port)
