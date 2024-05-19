@@ -26,7 +26,7 @@ def parse_args():
                         help='Saves results to csv, default True')
 
     parser.add_argument('--address', type=str, nargs='?',
-                        help='Address of the grpc server of format ip:port, default localhost')
+                        help='Address of the grpc server of format ip:port, default 0.0.0.0')
 
     parser.add_argument('--model', type=str, nargs='?',
                         help='Name of a ml model located in the models folder, including file ext')
