@@ -79,7 +79,7 @@ def handle_label_update_message(data_bundle):
 
     filter = {"identifier": identifier}
     update = {
-        "$set": {"human_label": 1 if not curr_pred else 0}}
+        "$set": {"human_label": not curr_pred}}
 
     result = mongo_collection.update_many(filter, update)
     print(f"Result of DB update: {result}")
@@ -115,7 +115,7 @@ def handle_prediction_message(data_bundle):
                 "Torque_z": float(array[5][i]),
             },
             "prediction": prediction,
-            "human_label": -1
+            "human_label": prediction
         } for i in range(array_len)
     ]
 

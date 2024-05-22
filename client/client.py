@@ -35,7 +35,7 @@ class ClientBase(ABC):
         self.address = address if address is not None else 'localhost:8061'
         self.connect(self.address)
         self.socket = socket
-        self.predictions = deque(maxlen=20)
+        self.predictions = deque(maxlen=40)
         self.save_res = save_res if save_res is not None else True
         self.stream_in_progress = False
 
