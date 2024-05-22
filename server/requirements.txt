@@ -10,4 +10,4 @@ tslearn
 cryptography
 requests
 asyncio
-ctuFaultDetector
+ctuFaultDetector==1.0.0
