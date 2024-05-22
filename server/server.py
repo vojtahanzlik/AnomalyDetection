@@ -121,7 +121,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         msg_id = request.msg_id
         self.logger.info("Received request")
         array = rpc_request_arr_to_np_arr(request)
-        identifiers = array[6]
+        identifiers = array[self.identifier_idx]
         unique_ids = np.unique(identifiers)
 
         for uid in unique_ids:
@@ -139,7 +139,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
     def process_unique_id(self, uid, identifiers: np.ndarray, array: np.ndarray,
                           buffer: dict, current_ids: set, msg_id: int):
         """
-        Processes each unique identifier in the request.
+        Processes each unique identifier in the request updating the buffer and running prediction.
 
         Args:
             uid: The unique identifier.
@@ -164,7 +164,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         buffer[uid][1] = pred_res
         if pred_res is not None:
             self.logger.info(
-                f"Send SendNumpyArray response: result: {pred_res}, id: {uid}, time series length: {arr_len}")
+                f"Send AnomalyDetResponse: result: {pred_res}, id: {uid}, time series length: {arr_len}")
             return AnomalyDetResponse(id=uid, result=pred_res, series_len=arr_len, msg_id=msg_id)
 
     def handle_zero_identifiers(self, identifiers: np.ndarray, buffer: dict, current_ids: set):
@@ -182,7 +182,7 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
                 non_zero_indices = np.where(identifiers == uid)[0]
                 if non_zero_indices.size == 0:
                     timestamp_row = buffer[uid][0][self.timestamp_idx, :]
-                    pool.apply_async(publish_data, (self.publisher, buffer[uid][0], buffer[uid][1], uid, timestamp_row))
+                    pool.apply_async(publish_data, (self.publisher, buffer[uid][0], bool(buffer[uid][1]), uid, timestamp_row))
                     del buffer[uid]
                     current_ids.remove(uid)
                     self.logger.info(f"Buffer for identifier {uid} completed and cleared.")

@@ -64,7 +64,6 @@ class MyClient(ClientBase):
             if array is None:
                 self.logger.info("Streaming round done")
                 continue
-
             rows = array.shape[0]
             cols = array.shape[1]
             vals = array.flatten()
