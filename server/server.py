@@ -9,7 +9,6 @@ from Classifier import ClassifierFactory
 from helpers import get_logger
 from messages_pb2 import AnomalyDetResponse
 from messages_pb2_grpc import AnomalyDetectionServiceServicer, add_AnomalyDetectionServiceServicer_to_server
-from mqtt_publisher import publish_data, mqtt_connect
 
 pool = ThreadPool(processes=2)
 
@@ -76,7 +75,6 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
         self.identifier_idx = 6
         self.timestamp_idx = 7
 
-        self.publisher = mqtt_connect()
 
         self.results = []
 
@@ -182,7 +180,6 @@ class AnomalyDetectionServer(AnomalyDetectionServiceServicer):
                 non_zero_indices = np.where(identifiers == uid)[0]
                 if non_zero_indices.size == 0:
                     timestamp_row = buffer[uid][0][self.timestamp_idx, :]
-                    pool.apply_async(publish_data, (self.publisher, buffer[uid][0], bool(buffer[uid][1]), uid, timestamp_row))
                     del buffer[uid]
                     current_ids.remove(uid)
                     self.logger.info(f"Buffer for identifier {uid} completed and cleared.")

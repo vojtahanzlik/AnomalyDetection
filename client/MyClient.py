@@ -70,4 +70,5 @@ class MyClient(ClientBase):
             client.messages_timestamps.update({id: [datetime.now()]})
             request = NumpyArray(values=vals, rows=rows, cols=cols, msg_id=id)
             id += 1
+            sleep(1)
             yield request

@@ -1,7 +1,6 @@
 import pickle
 from abc import abstractmethod, ABC
 
-import torch
 from PROD import featureClassifier, deviationClassifier
 from helpers import get_logger
 
@@ -25,9 +24,6 @@ class ClassifierFactory:
                 else:
                     raise ValueError("Unknown classifier type in .pkl file")
 
-        elif path.endswith(".pth"):
-            classifier = torch.load(path)
-            classifier = LstmClassifier(classifier)
         else:
             raise ValueError("Unsupported file extension")
 
