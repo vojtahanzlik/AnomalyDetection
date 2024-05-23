@@ -1,0 +1,14 @@
+grpcio
+h5py
+matplotlib
+numpy
+opcua
+pandas
+protobuf
+scikit_learn
+scipy
+tslearn
+cryptography
+paho-mqtt
+flask
+flask_socketio
