@@ -1,0 +1,19 @@
+syntax="proto3";
+
+service DataBrokerService{
+    rpc databroker(Empty) returns (stream NumpyArray);
+}
+
+
+message NumpyArray {
+    repeated double values = 1;
+    int32 rows = 2;
+    int32 cols = 3;
+    int32 id = 4;
+
+}
+
+message Empty {
+
+}
+
