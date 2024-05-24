@@ -4,7 +4,6 @@ from time import sleep
 import grpc
 from concurrent import futures
 
-
 import logging
 
 import numpy as np
@@ -37,7 +36,6 @@ class DatabrokerServicer(DataBrokerService):
                 response = NumpyArray(values=vals, rows=rows, cols=cols, id=0)
                 logger.debug(response)
                 yield response
-
 
 
 def serve():

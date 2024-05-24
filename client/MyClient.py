@@ -43,7 +43,6 @@ class MyClient(ClientBase):
             prev_last_timestamp = last_timestamp
             timestamps = np.linspace(start=first_timestamp, stop=last_timestamp, num=num_of_datapoints)
             selected_rows = np.vstack((selected_rows, timestamps))
-
             split_arrays = np.array_split(selected_rows, 24, axis=1)
             for array in split_arrays:
                 yield array
@@ -68,6 +67,7 @@ class MyClient(ClientBase):
             cols = array.shape[1]
             vals = array.flatten()
             client.messages_timestamps.update({id: [datetime.now()]})
+            sleep(1)
             request = NumpyArray(values=vals, rows=rows, cols=cols, msg_id=id)
             id += 1
             sleep(1)
