@@ -6,7 +6,7 @@ import paho.mqtt.client as mqtt
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 
-mongotoken = "7VsHwuoa6fEtZMsEgiFspBPo6j7x33DS3jxnjyNzCKRGtSDDDrZZldIwVsip3Chl"
+mongotoken = "" # get from envvar or something
 uri = "mongodb+srv://deltarobot.sfzmqlm.mongodb.net/?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority&appName=DeltaRobot"
 mongo_client = MongoClient(uri,
                            tls=True,
